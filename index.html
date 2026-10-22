@@ -1013,10 +1013,12 @@ input[type=range] { cursor: pointer; touch-action: pan-y; }
   function tgInit() {
     var T = window.Telegram && window.Telegram.WebApp; if (!T) return;
     T.ready(); try { T.expand(); } catch (e) {}
+    try { if (T.disableVerticalSwipes) T.disableVerticalSwipes(); } catch (e) {}
     ['setHeaderColor', 'setBackgroundColor', 'setBottomBarColor'].forEach(function (m) { try { T[m]('#0B0B0C'); } catch (e) {} });
     function insets() {
       var sa = T.safeAreaInset || {}, ca = T.contentSafeAreaInset || {};
-      var top = (sa.top || 0) + (ca.top || 0), bot = (sa.bottom || 0) + (ca.bottom || 0);
+      var fs = !!T.isFullscreen;
+      var top = fs ? (sa.top || 0) + (ca.top || 0) : 0, bot = (sa.bottom || 0) + (ca.bottom || 0);
       var r = document.documentElement.style;
       r.setProperty('--top-inset', top + 'px'); r.setProperty('--bot-inset', bot + 'px');
     }
@@ -1027,7 +1029,20 @@ input[type=range] { cursor: pointer; touch-action: pan-y; }
       if (a && T.openTelegramLink) { e.preventDefault(); T.openTelegramLink(a.href); }
     });
   }
-  if (inTG) { var sc = document.createElement('script'); sc.src = 'https://telegram.org/js/telegram-web-app.js'; sc.onload = tgInit; document.head.appendChild(sc); }
+
+  /* В мини-аппе запрещаем масштабирование страницы (щипок, двойной тап, ctrl+колесо) */
+  function lockZoom() {
+    var vp = document.querySelector('meta[name=viewport]');
+    if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
+    document.documentElement.style.touchAction = 'pan-x pan-y';
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false }); });
+    document.addEventListener('touchmove', function (e) { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
+    var last = 0;
+    document.addEventListener('touchend', function (e) { var n = Date.now(); if (n - last < 300 && !e.target.closest('a,button,input,[data-faq]')) e.preventDefault(); last = n; }, { passive: false });
+    window.addEventListener('wheel', function (e) { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+    document.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && ['+', '-', '=', '0'].indexOf(e.key) > -1) e.preventDefault(); });
+  }
+  if (inTG) { lockZoom(); var sc = document.createElement('script'); sc.src = 'https://telegram.org/js/telegram-web-app.js'; sc.onload = tgInit; document.head.appendChild(sc); }
 
   fit();
   window.addEventListener('resize', fit);
